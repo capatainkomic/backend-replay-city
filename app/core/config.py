@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Base de données
     DATABASE_URL: str = ""
 
+    # Supabase 
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
+
     # Stockage fichiers 3D
     STORAGE_URL: str = ""
 
