@@ -1,0 +1,19 @@
+# Environnement virtuel
+venv/
+
+# Variables d'environnement (contient les clés API — ne jamais pousser !)
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
