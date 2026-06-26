@@ -6,3 +6,4 @@ python-dotenv==1.0.1
 supabase==2.5.0
 asyncpg==0.29.0
 sqlalchemy==2.0.31
+sentence-transformers==3.0.1
