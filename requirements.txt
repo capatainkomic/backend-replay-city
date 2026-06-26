@@ -8,4 +8,4 @@ sqlalchemy
 sentence-transformers
 shapely
 openai
-mistralai
+mistralai>=1.2.5
