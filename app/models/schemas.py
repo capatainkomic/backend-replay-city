@@ -91,10 +91,10 @@ class GenerationRequest(BaseModel):
         ...,
         description="Type de projet à générer"
     )
-    project_description: Optional[str] = Field(
+    project_name: Optional[str] = Field(
         None,
         max_length=500,
-        description="Description libre optionnelle du projet"
+        description="Nom du projet"
     )
 
     # Les contraintes
@@ -103,9 +103,11 @@ class GenerationRequest(BaseModel):
         min_length=1,
         description="Tranches d'âge ciblées"
     )
-    accessibilite_pmr: bool = Field(
-        False,
-        description="Le projet doit-il être accessible PMR ?"
+
+    budget_euros: Optional[float] = Field(
+        None,
+        gt=0,
+        description="Budget estimatif en euros"
     )
 
     class Config:
@@ -117,9 +119,9 @@ class GenerationRequest(BaseModel):
                     "largeur_m": 20.0
                 },
                 "project_type": "aire_de_jeux",
-                "project_description": "Aire de jeux sur le thème de la forêt",
+                "project_name": "Aire de jeux sur le thème de la forêt",
                 "age_ranges": ["3-6", "6-12"],
-                "accessibilite_pmr": True
+                "budget_euros": 5000.0
             }
         }
 
@@ -241,3 +243,20 @@ class SceneResponse(BaseModel):
                 "avertissements": []
             }
         }
+    
+# ─────────────────────────────────────────────
+# RÉPONSE 2D
+# ─────────────────────────────────────────────
+
+class EquipementItem(BaseModel):
+    nom: str = Field(..., description="Nom de l'équipement")
+    quantite: int = Field(..., description="Quantité")
+
+class Generation2DResponse(BaseModel):
+    url_image: str = Field(..., description="URL de l'image générée")
+    terrain_largeur_m: float = Field(..., description="Largeur du terrain en mètres")
+    terrain_longueur_m: float = Field(..., description="Longueur du terrain en mètres")
+    project_type: str = Field(..., description="Type de projet")
+    surface_occupee_pct: float = Field(..., description="Surface utilisée en %")
+    cout_estime_euros: float = Field(..., description="Coût estimé en euros")
+    equipements: list[EquipementItem] = Field(..., description="Liste des équipements")

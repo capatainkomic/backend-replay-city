@@ -19,20 +19,15 @@ def generer_liste_objets(
     terrain_largeur_m: float,
     terrain_longueur_m: float,
     age_ranges: list[str],
-    accessibilite_pmr: bool,
-    description_libre: str = None
+    budget_euros: float = None
 ) -> dict:
-    """
-    Demande au LLM de générer la liste des objets nécessaires
-    et leurs contraintes spatiales pour le projet.
-    """
+
     prompt = _construire_prompt(
         project_type,
         terrain_largeur_m,
         terrain_longueur_m,
         age_ranges,
-        accessibilite_pmr,
-        description_libre
+        budget_euros
     )
 
     try:
@@ -41,10 +36,33 @@ def generer_liste_objets(
             messages=[{"role": "user", "content": prompt}]
         )
         texte = response.choices[0].message.content
-        return _extraire_json(texte)
+        resultat = _extraire_json(texte)
+
+        zones_validees = _valider_zones(
+            resultat.get("zones", []),
+            terrain_largeur_m,
+            terrain_longueur_m
+        )
+        resultat["zones"] = zones_validees
+
+        objets_plats = []
+        for zone in resultat.get("zones", []):
+            for obj in zone.get("objets", []):
+                obj["zone_id"] = zone["id"]
+                obj["zone_x_debut"] = zone["x_debut"]
+                obj["zone_z_debut"] = zone["z_debut"]
+                obj["zone_largeur"] = zone["largeur"]
+                obj["zone_longueur"] = zone["longueur"]
+                objets_plats.append(obj)
+
+        return {
+            "objets": objets_plats,
+            "zones": resultat.get("zones", []),
+            "contraintes": resultat.get("contraintes", [])
+        }
 
     except Exception as e:
-        print(f"❌ Erreur LLM : {e}")
+        print(f"Erreur LLM : {e}")
         return _resultat_defaut(project_type)
 
 
@@ -53,8 +71,7 @@ def _construire_prompt(
     terrain_largeur_m: float,
     terrain_longueur_m: float,
     age_ranges: list[str],
-    accessibilite_pmr: bool,
-    description_libre: str = None
+    budget_euros: float = None
 ) -> str:
 
     types_projets = {
@@ -65,53 +82,73 @@ def _construire_prompt(
     }
 
     ages_texte = ", ".join(age_ranges)
-    pmr_texte = "Le projet DOIT être accessible aux personnes à mobilité réduite (PMR)." if accessibilite_pmr else ""
-    description_texte = f"Description spécifique du client : {description_libre}" if description_libre else ""
     surface = terrain_largeur_m * terrain_longueur_m
+
+    if budget_euros and budget_euros < 5000:
+        budget_texte = f"Budget limité : {budget_euros}€ — équipements simples et peu nombreux"
+    elif budget_euros and budget_euros < 20000:
+        budget_texte = f"Budget moyen : {budget_euros}€ — équipements standards"
+    elif budget_euros and budget_euros >= 20000:
+        budget_texte = f"Budget confortable : {budget_euros}€ — équipements variés et de qualité"
+    else:
+        budget_texte = ""
 
     prompt = f"""Tu es un expert en aménagement d'espaces extérieurs pour enfants.
 
-Tu dois planifier une {types_projets.get(project_type, project_type)} pour un terrain de {terrain_largeur_m}m x {terrain_longueur_m}m ({surface}m²).
-Tranches d'age ciblees : {ages_texte}
-{pmr_texte}
-{description_texte}
+    TERRAIN : {terrain_largeur_m}m (largeur, axe X) x {terrain_longueur_m}m (longueur, axe Z) = {surface}m²
+    Origine (0,0) = coin bas-gauche du terrain.
+    Axe X = gauche vers droite. Axe Z = bas vers haut.
+    {budget_texte}
 
-Genere une liste d'objets et leur organisation spatiale pour ce projet.
+    PROJET : {types_projets.get(project_type, project_type)}
+    TRANCHES D'AGE : {ages_texte}
 
-REGLES IMPORTANTES :
-- Adapte le nombre d'objets a la taille du terrain (terrain petit = moins d'objets)
-- Ne propose que des objets realistes pour ce type d'espace
-- Pense a la securite et a la circulation entre les objets
-- Inclus toujours quelques elements de vegetation
-- Inclus toujours quelques elements de mobilier urbain (bancs, poubelles)
+    ETAPE 1 — Découpe le terrain en zones fonctionnelles.
+    Chaque zone est un rectangle défini par :
+    - x_debut, z_debut : coin bas-gauche de la zone (en mètres depuis l'origine)
+    - largeur (axe X), longueur (axe Z) : dimensions de la zone
 
-Reponds UNIQUEMENT avec un JSON valide, sans texte avant ou apres, sans balises markdown, dans ce format exact :
+    Règles impératives :
+    - Les zones ne doivent PAS se chevaucher
+    - Les zones doivent couvrir la majorité du terrain
+    - Laisse une marge de 1m sur chaque bord du terrain
+    - Prévoir toujours : 1 zone centrale pour équipements principaux, 1 zone végétation en bordure, 1 zone repos/mobilier
 
-{{
-  "objets": [
+    ETAPE 2 — Pour chaque zone, liste les objets à y placer.
+    Adapte le nombre d'objets à la SURFACE RÉELLE de la zone.
+    Règle : max 1 objet par 4m² de zone.
+
+    Reponds UNIQUEMENT avec un JSON valide, sans texte avant ou apres, sans balises markdown :
+
     {{
-      "id_temp": "obj_1",
-      "description_recherche": "description courte pour trouver l'objet dans la bibliotheque",
-      "categorie": "equipement | vegetation | mobilier_urbain",
-      "priorite": "indispensable | recommande | bonus",
-      "quantite": 1
-    }}
-  ],
-  "zones": [
-    {{
-      "nom": "nom de la zone",
-      "description": "description de la zone",
-      "pourcentage_terrain": 30
-    }}
-  ],
-  "contraintes": [
-    {{
-      "objet_1": "id_temp de l'objet 1",
-      "relation": "loin_de | proche_de | borde | centre",
-      "objet_2": "id_temp de l'objet 2 OU entree OU perimetre OU centre"
-    }}
-  ]
-}}"""
+    "zones": [
+        {{
+        "id": "zone_1",
+        "nom": "nom court de la zone",
+        "type": "jeux_actifs | repos | vegetation | entree | mixte",
+        "x_debut": 1.0,
+        "z_debut": 1.0,
+        "largeur": 8.0,
+        "longueur": 10.0,
+        "objets": [
+            {{
+            "id_temp": "obj_1",
+            "description_recherche": "description courte pour trouver l'objet",
+            "categorie": "equipement | vegetation | mobilier_urbain",
+            "priorite": "indispensable | recommande | bonus",
+            "quantite": 1
+            }}
+        ]
+        }}
+    ],
+    "contraintes": [
+        {{
+        "objet_1": "obj_1",
+        "relation": "loin_de | proche_de | face_a | borde",
+        "objet_2": "obj_2"
+        }}
+    ]
+    }}"""
 
     return prompt
 
@@ -170,3 +207,93 @@ def _resultat_defaut(project_type: str) -> dict:
         "zones": [],
         "contraintes": []
     }
+
+def _valider_zones(zones: list, terrain_largeur_m: float, terrain_longueur_m: float) -> list:
+    """
+    Corrige les zones qui dépassent les limites du terrain.
+    """
+    zones_corrigees = []
+    for zone in zones:
+        x_debut = max(1.0, min(zone["x_debut"], terrain_largeur_m - 2))
+        z_debut = max(1.0, min(zone["z_debut"], terrain_longueur_m - 2))
+        largeur = min(zone["largeur"], terrain_largeur_m - x_debut - 1)
+        longueur = min(zone["longueur"], terrain_longueur_m - z_debut - 1)
+
+        if largeur < 1.0 or longueur < 1.0:
+            print(f"Zone '{zone['id']}' ignorée — trop petite après correction")
+            continue
+
+        zone_corrigee = {**zone, "x_debut": x_debut, "z_debut": z_debut,
+                        "largeur": largeur, "longueur": longueur}
+        zones_corrigees.append(zone_corrigee)
+
+    return zones_corrigees
+
+def generer_metriques_2d(
+    project_type: str,
+    terrain_largeur_m: float,
+    terrain_longueur_m: float,
+    age_ranges: list[str],
+    budget_euros: float = None
+) -> dict:
+    """
+    Génère les métriques du projet pour la réponse 2D :
+    liste des équipements, coût estimé, surface utilisée.
+    """
+    surface = terrain_largeur_m * terrain_longueur_m
+
+    types_projets = {
+        "aire_de_jeux": "aire de jeux extérieure",
+        "jardin_pedagogique": "jardin pédagogique",
+        "espace_lecture": "espace lecture extérieur",
+        "espace_sportif": "espace sportif"
+    }
+
+    ages_texte = ", ".join(age_ranges)
+
+    if budget_euros:
+        budget_texte = f"Budget disponible : {budget_euros}€"
+    else:
+        budget_texte = "Pas de budget défini, propose un budget raisonnable"
+
+    prompt = f"""Tu es un expert en aménagement d'espaces extérieurs pour enfants.
+
+Projet : {types_projets.get(project_type, project_type)}
+Terrain : {terrain_largeur_m}m x {terrain_longueur_m}m ({surface}m²)
+Tranches d'âge : {ages_texte}
+{budget_texte}
+
+Génère une liste réaliste des équipements pour ce projet avec :
+- Le nom de chaque équipement
+- La quantité
+- Le coût unitaire estimé en euros (prix marché français)
+
+Reponds UNIQUEMENT avec un JSON valide sans texte ni balises markdown :
+
+{{
+  "equipements": [
+    {{
+      "nom": "Toboggan double lame",
+      "quantite": 1,
+      "cout_unitaire": 1500
+    }}
+  ],
+  "surface_occupee_pct": 75,
+  "cout_total_euros": 15000
+}}"""
+
+    try:
+        response = client.chat.complete(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        texte = response.choices[0].message.content
+        return _extraire_json(texte)
+
+    except Exception as e:
+        print(f"Erreur LLM métriques : {e}")
+        return {
+            "equipements": [],
+            "surface_occupee_pct": 70.0,
+            "cout_total_euros": budget_euros or 10000
+        }

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     # LLM
     GEMINI_API_KEY: str = ""
     MISTRAL_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
 
     # Base de données
     DATABASE_URL: str = ""
@@ -22,6 +23,7 @@ class Settings(BaseSettings):
     # Supabase 
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
+
 
     # Stockage fichiers 3D
     STORAGE_URL: str = ""
