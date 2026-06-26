@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     # LLM
     GEMINI_API_KEY: str = ""
+    MISTRAL_API_KEY: str = ""
 
     # Base de données
     DATABASE_URL: str = ""

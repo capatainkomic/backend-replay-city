@@ -131,35 +131,56 @@ class GenerationRequest(BaseModel):
 class Object3D(BaseModel):
     """
     Représente un objet 3D positionné dans la scène.
-    C'est ce que Three.js côté frontend va lire pour afficher chaque élément.
+    Peut être un vrai asset GLB ou un placeholder (boîte grise).
     """
 
     # Identification
-    asset_id: str = Field(..., description="ID unique dans la bibliothèque")
-    nom: str = Field(..., description="Nom lisible (ex: 'Toboggan rouge')")
-    fichier_glb: str = Field(..., description="URL du fichier .glb")
+    asset_id: str = Field(..., description="ID unique dans la bibliothèque ou 'placeholder'")
+    nom: str = Field(..., description="Nom lisible de l'objet")
+
+    # Type d'objet
+    # 'asset' = vrai modèle 3D disponible
+    # 'placeholder' = boîte grise avec label (objet manquant)
+    type: str = Field("asset", description="'asset' ou 'placeholder'")
+
+    # Fichier 3D — null si placeholder
+    fichier_glb: Optional[str] = Field(None, description="URL du fichier .glb")
+
+    # Informations placeholder
+    placeholder_label: Optional[str] = Field(
+        None,
+        description="Nom affiché sur la boîte grise si placeholder"
+    )
+    placeholder_couleur: Optional[str] = Field(
+        "#cccccc",
+        description="Couleur de la boîte placeholder en hex"
+    )
+
+    # Scale à appliquer dans Three.js
+    scale_x: float = Field(1.0, description="Scale axe X")
+    scale_y: float = Field(1.0, description="Scale axe Y")
+    scale_z: float = Field(1.0, description="Scale axe Z")
 
     # Position en mètres
-    # x = gauche/droite, z = avant/arrière, y = hauteur (0 = au sol)
     position_x: float = Field(..., description="Position horizontale en mètres")
     position_z: float = Field(..., description="Position en profondeur en mètres")
     position_y: float = Field(0.0, description="Hauteur (0 = au sol)")
 
-    # Rotation en degrés autour de l'axe vertical
-    rotation_y: float = Field(
-        0.0,
-        ge=0,       # >= 0
-        lt=360,     # < 360
-        description="Rotation en degrés"
-    )
+    # Rotation en degrés
+    rotation_y: float = Field(0.0, ge=0, lt=360, description="Rotation en degrés")
 
-    # Échelle
-    scale: float = Field(1.0, gt=0, description="1.0 = taille normale")
+    # Dimensions réelles (bounding box)
+    largeur_m: float = Field(..., description="Largeur réelle en mètres")
+    longueur_m: float = Field(..., description="Longueur réelle en mètres")
+    hauteur_m: float = Field(..., description="Hauteur réelle en mètres")
 
-    # Catégorie (utile pour le rendu et la comparaison)
-    categorie: str = Field(
-        ...,
-        description="Ex: 'equipement', 'vegetation', 'mobilier'"
+    # Catégorie
+    categorie: str = Field(..., description="equipement, vegetation, mobilier_urbain")
+
+    # Score de similarité avec la recherche sémantique
+    similarite: Optional[float] = Field(
+        None,
+        description="Score de correspondance avec la bibliothèque (0 à 1)"
     )
 
 
